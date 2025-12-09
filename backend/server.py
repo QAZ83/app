@@ -380,15 +380,11 @@ async def chat_with_ai(request: ChatRequest):
             message = PRESET_PROMPTS[request.preset]
         
         # Initialize chat
+        system_msg = "أنت مساعد ذكاء اصطناعي متخصص في بطاقات الرسومات NVIDIA وتحسين أداء GPU. أنت جزء من تطبيق AI Forge Studio. قدم إجابات مفيدة ودقيقة باللغة العربية والإنجليزية حسب لغة المستخدم. ساعد المستخدمين في: حل مشاكل GPU والأداء، تحليل نتائج Benchmarks، اقتراح إعدادات مثالية، شرح مميزات التطبيق، الإجابة على أي أسئلة تقنية."
         chat = LlmChat(
             api_key=api_key,
             session_id=session_id,
-            system_message="أنت مساعد ذكاء اصطناعي متخصص في بطاقات الرسومات NVIDIA وتحسين أداء GPU. أنت جزء من تطبيق AI Forge Studio. قدم إجابات مفيدة ودقيقة باللغة العربية والإنجليزية حسب لغة المستخدم. ساعد المستخدمين في:
-- حل مشاكل GPU والأداء
-- تحليل نتائج Benchmarks
-- اقتراح إعدادات مثالية
-- شرح مميزات التطبيق
-- الإجابة على أي أسئلة تقنية"
+            system_message=system_msg
         ).with_model("openai", "gpt-4o-mini")
         
         # Get chat history from database

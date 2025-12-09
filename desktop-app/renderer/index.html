@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:*">
+  <title>AI Forge Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+    ::-webkit-scrollbar-thumb { background: rgba(6, 182, 212, 0.3); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(6, 182, 212, 0.5); }
+    
+    /* Animations */
+    @keyframes pulse-cyan {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(6, 182, 212, 0); }
+    }
+    .pulse-cyan { animation: pulse-cyan 2s infinite; }
+    
+    .loader { 
+      border: 3px solid rgba(6, 182, 212, 0.2);
+      border-top-color: #06b6d4;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    /* Neon glow */
+    .neon-border { box-shadow: 0 0 5px rgba(6, 182, 212, 0.5), 0 0 10px rgba(6, 182, 212, 0.3); }
+    
+    /* RTL fixes */
+    [dir="rtl"] select {
+      background-position: left 0.5rem center;
+      padding-left: 2.5rem;
+      padding-right: 1rem;
+    }
+  </style>
+</head>
+<body class="bg-gray-950 text-white min-h-screen">
+  <div id="root"></div>
+  
+  <script>
+    // Configuration
+    let BACKEND_URL = 'http://127.0.0.1:8080';
+    let currentPage = 'dashboard';
+    let gpuInfo = null;
+    let chatOpen = false;
+    let chatMessages = [];
+    let chatSessionId = null;
+    let settings = {};
+    
+    // Initialize
+    async function init() {
+      // Get backend URL from Electron if available
+      if (window.electronAPI) {
+        BACKEND_URL = await window.electronAPI.getBackendUrl();
+        
+        // Listen for navigation events from menu
+        window.electronAPI.onNavigate((page) => {
+          currentPage = page;
+          render();
+        });
+        
+        window.electronAPI.onToggleAIAssistant(() => {
+          chatOpen = !chatOpen;
+          render();
+        });
+      }
+      
+      // Start GPU monitoring
+      fetchGPUInfo();
+      setInterval(fetchGPUInfo, 2000);
+      
+      // Load settings
+      fetchSettings();
+      
+      render();
+    }
+    
+    // API Functions
+    async function fetchGPUInfo() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/gpu/info`);
+        gpuInfo = await res.json();
+        if (currentPage === 'dashboard') render();
+      } catch (e) {
+        console.error('GPU fetch error:', e);
+      }
+    }
+    
+    async function fetchSettings() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/settings`);
+        settings = await res.json();
+      } catch (e) {
+        console.error('Settings fetch error:', e);
+      }
+    }
+    
+    async function saveSettings(newSettings) {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/settings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newSettings)
+        });
+        settings = await res.json();
+        alert('تم حفظ الإعدادات بنجاح');
+      } catch (e) {
+        alert('خطأ في حفظ الإعدادات');
+      }
+    }
+    
+    async function runBenchmark(type) {
+      const btn = document.getElementById(`bench-${type}`);
+      if (btn) btn.innerHTML = '<div class="loader"></div> جاري...';
+      
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/benchmark/${type}`, { method: 'POST' });
+        const result = await res.json();
+        displayBenchmarkResult(type, result);
+      } catch (e) {
+        alert('خطأ في تشغيل الاختبار');
+      } finally {
+        if (btn) btn.innerHTML = 'تشغيل';
+      }
+    }
+    
+    function displayBenchmarkResult(type, result) {
+      const el = document.getElementById(`result-${type}`);
+      if (el) {
+        el.innerHTML = `
+          <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-white/10">
+            <div class="text-center">
+              <p class="text-xl font-bold text-cyan-400">${Math.round(result.score).toLocaleString()}</p>
+              <p class="text-xs text-gray-500">النتيجة</p>
+            </div>
+            <div class="text-center">
+              <p class="text-xl font-bold text-green-400">${result.fps?.toFixed(1) || '-'}</p>
+              <p class="text-xs text-gray-500">FPS</p>
+            </div>
+            <div class="text-center">
+              <p class="text-xl font-bold text-yellow-400">${result.temperature?.toFixed(1) || '-'}°</p>
+              <p class="text-xs text-gray-500">الحرارة</p>
+            </div>
+          </div>
+          <p class="text-xs text-gray-600 mt-2">${result.is_real ? '✅ نتيجة حقيقية' : '⚠️ محاكاة'}</p>
+        `;
+      }
+    }
+    
+    async function runInference() {
+      const model = document.getElementById('inf-model')?.value || 'ResNet50';
+      const batch = parseInt(document.getElementById('inf-batch')?.value || '1');
+      const precision = document.querySelector('input[name="precision"]:checked')?.value || 'FP16';
+      const framework = document.querySelector('input[name="framework"]:checked')?.value || 'TensorRT';
+      
+      const btn = document.getElementById('run-inference');
+      if (btn) btn.innerHTML = '<div class="loader"></div> جاري...';
+      
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/inference/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_name: model, batch_size: batch, precision, framework })
+        });
+        const result = await res.json();
+        displayInferenceResult(result);
+      } catch (e) {
+        alert('خطأ في تشغيل الاستدلال');
+      } finally {
+        if (btn) btn.innerHTML = 'تشغيل الاستدلال';
+      }
+    }
+    
+    function displayInferenceResult(result) {
+      const el = document.getElementById('inference-result');
+      if (el) {
+        el.innerHTML = `
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-4 rounded-lg bg-black/30">
+              <p class="text-gray-400 text-sm">وقت الاستجابة</p>
+              <p class="text-2xl font-bold text-cyan-400">${result.latency_ms} ms</p>
+            </div>
+            <div class="p-4 rounded-lg bg-black/30">
+              <p class="text-gray-400 text-sm">معدل الإنتاجية</p>
+              <p class="text-2xl font-bold text-green-400">${result.throughput} img/s</p>
+            </div>
+            <div class="p-4 rounded-lg bg-black/30">
+              <p class="text-gray-400 text-sm">الذاكرة</p>
+              <p class="text-2xl font-bold text-purple-400">${result.memory_allocated_mb} MB</p>
+            </div>
+            <div class="p-4 rounded-lg bg-black/30">
+              <p class="text-gray-400 text-sm">الدقة</p>
+              <p class="text-2xl font-bold text-yellow-400">${result.precision}</p>
+            </div>
+          </div>
+          <p class="text-xs text-gray-600 mt-3">${result.is_real ? '✅ نتيجة حقيقية' : '⚠️ محاكاة'}</p>
+        `;
+      }
+    }
+    
+    async function sendChatMessage(preset = null) {
+      const input = document.getElementById('chat-input');
+      const message = preset || input?.value?.trim();
+      if (!message) return;
+      
+      // Add user message
+      chatMessages.push({ role: 'user', content: preset ? `[خيار جاهز]` : message });
+      if (input) input.value = '';
+      renderChat();
+      
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, session_id: chatSessionId, preset })
+        });
+        const data = await res.json();
+        chatSessionId = data.session_id;
+        chatMessages.push({ role: 'assistant', content: data.response });
+      } catch (e) {
+        chatMessages.push({ role: 'assistant', content: 'خطأ في الاتصال. تأكد من إعداد مفتاح API في الإعدادات.' });
+      }
+      renderChat();
+    }
+    
+    // Render Functions
+    function render() {
+      const root = document.getElementById('root');
+      root.innerHTML = `
+        <div class="flex h-screen">
+          ${renderSidebar()}
+          <main class="flex-1 overflow-y-auto p-8">
+            ${renderPage()}
+          </main>
+          ${chatOpen ? renderChatPanel() : ''}
+        </div>
+      `;
+    }
+    
+    function renderSidebar() {
+      const items = [
+        { id: 'dashboard', icon: '⭐', label: 'لوحة التحكم' },
+        { id: 'benchmarks', icon: '📊', label: 'اختبارات الأداء' },
+        { id: 'inference', icon: '⚡', label: 'الاستدلال' },
+        { id: 'settings', icon: '⚙️', label: 'الإعدادات' }
+      ];
+      
+      return `
+        <div class="w-64 bg-gray-900/50 border-l border-cyan-500/20 flex flex-col">
+          <div class="p-6 border-b border-cyan-500/20">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">AI Forge Studio</h1>
+            <p class="text-xs text-gray-500 mt-1">${gpuInfo?.is_real ? '🟢 GPU حقيقي' : '🟡 محاكاة'}</p>
+          </div>
+          <nav class="flex-1 p-4 space-y-2">
+            ${items.map(item => `
+              <button onclick="currentPage='${item.id}';render()" 
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                  currentPage === item.id 
+                    ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-400 border border-cyan-500/30' 
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }">
+                <span>${item.icon}</span>
+                <span>${item.label}</span>
+              </button>
+            `).join('')}
+          </nav>
+          <div class="p-4 border-t border-cyan-500/20">
+            <button onclick="chatOpen=true;render()" 
+              class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium hover:opacity-90">
+              🤖 مساعد الذكاء
+            </button>
+          </div>
+        </div>
+      `;
+    }
+    
+    function renderPage() {
+      switch(currentPage) {
+        case 'dashboard': return renderDashboard();
+        case 'benchmarks': return renderBenchmarks();
+        case 'inference': return renderInference();
+        case 'settings': return renderSettings();
+        default: return renderDashboard();
+      }
+    }
+    
+    function renderDashboard() {
+      const g = gpuInfo || {};
+      return `
+        <div class="space-y-6">
+          <div class="flex justify-between items-center">
+            <div>
+              <h2 class="text-3xl font-bold">لوحة التحكم</h2>
+              <p class="text-gray-400">مراقبة أداء GPU في الوقت الفعلي</p>
+            </div>
+            <div class="flex items-center gap-2 px-4 py-2 rounded-lg ${g.is_real ? 'bg-green-500/20 border border-green-500/30' : 'bg-yellow-500/20 border border-yellow-500/30'}">
+              <div class="w-2 h-2 rounded-full ${g.is_real ? 'bg-green-500' : 'bg-yellow-500'} pulse-cyan"></div>
+              <span class="${g.is_real ? 'text-green-400' : 'text-yellow-400'} text-sm">${g.is_real ? 'GPU حقيقي' : 'محاكاة'}</span>
+            </div>
+          </div>
+          
+          <div class="rounded-2xl bg-gray-900/50 border border-cyan-500/20 p-6">
+            <div class="flex items-center gap-4 mb-6">
+              <div class="p-3 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30">
+                🎮
+              </div>
+              <div>
+                <h3 class="text-xl font-bold">${g.name || 'Loading...'}</h3>
+                <p class="text-gray-400 text-sm">Driver: ${g.driver_version || '-'} | CUDA: ${g.cuda_version || '-'}</p>
+              </div>
+            </div>
+            
+            <div class="mb-6">
+              <div class="flex justify-between text-sm mb-2">
+                <span class="text-gray-400">الذاكرة</span>
+                <span class="text-cyan-400">${g.memory_used?.toFixed(1) || 0} / ${g.memory_total || 0} GB</span>
+              </div>
+              <div class="h-3 rounded-full bg-gray-700/50 overflow-hidden">
+                <div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all" 
+                     style="width: ${((g.memory_used || 0) / (g.memory_total || 1)) * 100}%"></div>
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              ${renderStatCard('درجة الحرارة', g.temperature, '°C', 'cyan', 100)}
+              ${renderStatCard('استخدام GPU', g.utilization, '%', 'green', 100)}
+              ${renderStatCard('استهلاك الطاقة', g.power_usage, 'W', 'yellow', g.power_limit || 500)}
+              ${renderStatCard('سرعة الساعة', g.clock_speed, 'MHz', 'purple', 3000)}
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            ${renderStatCard('سرعة المروحة', g.fan_speed, '%', 'cyan', 100)}
+            ${renderStatCard('ذاكرة GPU', g.memory_utilization, '%', 'blue', 100)}
+            ${renderStatCard('PCIe Gen', g.pcie_gen, '', 'purple', 5)}
+            ${renderStatCard('PCIe Width', g.pcie_width, 'x', 'pink', 16)}
+          </div>
+        </div>
+      `;
+    }
+    
+    function renderStatCard(label, value, unit, color, max) {
+      const colors = {
+        cyan: 'from-cyan-500 to-cyan-400',
+        green: 'from-green-500 to-green-400',
+        yellow: 'from-yellow-500 to-yellow-400',
+        purple: 'from-purple-500 to-purple-400',
+        blue: 'from-blue-500 to-blue-400',
+        pink: 'from-pink-500 to-pink-400'
+      };
+      const v = value || 0;
+      return `
+        <div class="p-4 rounded-xl bg-black/30 border border-white/5">
+          <p class="text-gray-400 text-sm mb-2">${label}</p>
+          <p class="text-2xl font-bold bg-gradient-to-r ${colors[color]} bg-clip-text text-transparent">
+            ${typeof v === 'number' ? v.toFixed(1) : v}${unit}
+          </p>
+          <div class="mt-2 h-1.5 rounded-full bg-gray-700/50 overflow-hidden">
+            <div class="h-full rounded-full bg-gradient-to-r ${colors[color]} transition-all" 
+                 style="width: ${(v / max) * 100}%"></div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function renderBenchmarks() {
+      const benchmarks = [
+        { id: 'cuda', name: 'CUDA', desc: 'اختبار أداء CUDA', gradient: 'from-green-500 to-emerald-500' },
+        { id: 'tensorrt', name: 'TensorRT', desc: 'اختبار Tensor Cores', gradient: 'from-blue-500 to-cyan-500' },
+        { id: 'vulkan', name: 'Vulkan', desc: 'اختبار رسومات Vulkan', gradient: 'from-purple-500 to-pink-500' },
+        { id: 'general', name: 'General', desc: 'اختبار شامل', gradient: 'from-yellow-500 to-orange-500' }
+      ];
+      
+      return `
+        <div class="space-y-6">
+          <div>
+            <h2 class="text-3xl font-bold">اختبارات الأداء</h2>
+            <p class="text-gray-400">قياس أداء GPU الحقيقي</p>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${benchmarks.map(b => `
+              <div class="rounded-xl bg-gray-900/50 border border-white/10 p-6 relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-full h-1 bg-gradient-to-l ${b.gradient}"></div>
+                <div class="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 class="text-xl font-bold">${b.name}</h3>
+                    <p class="text-gray-400 text-sm">${b.desc}</p>
+                  </div>
+                  <button id="bench-${b.id}" onclick="runBenchmark('${b.id}')"
+                    class="px-4 py-2 rounded-lg bg-gradient-to-r ${b.gradient} text-white text-sm font-medium hover:opacity-90">
+                    تشغيل
+                  </button>
+                </div>
+                <div id="result-${b.id}"></div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    function renderInference() {
+      const models = ['ResNet50', 'ResNet101', 'VGG16', 'YOLO', 'YOLOv8', 'BERT', 'GPT-2', 'EfficientNet', 'MobileNet'];
+      
+      return `
+        <div class="space-y-6">
+          <div>
+            <h2 class="text-3xl font-bold">الاستدلال</h2>
+            <p class="text-gray-400">تشغيل نماذج AI</p>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="rounded-xl bg-gray-900/50 border border-white/10 p-6">
+              <h3 class="text-lg font-semibold mb-4">إعدادات الاستدلال</h3>
+              
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">النموذج</label>
+                  <select id="inf-model" class="w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white">
+                    ${models.map(m => `<option value="${m}">${m}</option>`).join('')}
+                  </select>
+                </div>
+                
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">حجم الدفعة</label>
+                  <input id="inf-batch" type="number" value="1" min="1" max="64"
+                    class="w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white">
+                </div>
+                
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">الدقة</label>
+                  <div class="flex gap-2">
+                    ${['FP32', 'FP16', 'INT8'].map((p, i) => `
+                      <label class="flex-1">
+                        <input type="radio" name="precision" value="${p}" ${i === 1 ? 'checked' : ''} class="hidden peer">
+                        <div class="py-2 text-center rounded-lg bg-black/30 text-gray-400 peer-checked:bg-cyan-500 peer-checked:text-white cursor-pointer">${p}</div>
+                      </label>
+                    `).join('')}
+                  </div>
+                </div>
+                
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">الإطار</label>
+                  <div class="flex gap-2">
+                    ${['TensorRT', 'CUDA', 'ONNX'].map((f, i) => `
+                      <label class="flex-1">
+                        <input type="radio" name="framework" value="${f}" ${i === 0 ? 'checked' : ''} class="hidden peer">
+                        <div class="py-2 text-center rounded-lg bg-black/30 text-gray-400 peer-checked:bg-purple-500 peer-checked:text-white cursor-pointer">${f}</div>
+                      </label>
+                    `).join('')}
+                  </div>
+                </div>
+                
+                <button id="run-inference" onclick="runInference()"
+                  class="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-medium hover:opacity-90">
+                  تشغيل الاستدلال
+                </button>
+              </div>
+            </div>
+            
+            <div class="rounded-xl bg-gray-900/50 border border-white/10 p-6">
+              <h3 class="text-lg font-semibold mb-4">النتائج</h3>
+              <div id="inference-result" class="min-h-[200px] flex items-center justify-center text-gray-500">
+                قم بتشغيل استدلال لرؤية النتائج
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function renderSettings() {
+      return `
+        <div class="space-y-6">
+          <div>
+            <h2 class="text-3xl font-bold">الإعدادات</h2>
+            <p class="text-gray-400">تخصيص إعدادات التطبيق</p>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="rounded-xl bg-gray-900/50 border border-white/10 p-6">
+              <h3 class="text-lg font-semibold mb-4">الإعدادات العامة</h3>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">مجلد النماذج</label>
+                  <div class="flex gap-2">
+                    <input id="set-models-dir" type="text" value="${settings.models_directory || ''}" 
+                      class="flex-1 px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white" placeholder="C:\\Models">
+                    <button onclick="selectModelsDir()" class="px-4 py-3 rounded-lg bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30">📁</button>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">دقة العرض</label>
+                  <select id="set-resolution" class="w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white">
+                    <option value="1920x1080" ${settings.display_resolution === '1920x1080' ? 'selected' : ''}>1920x1080 (FHD)</option>
+                    <option value="2560x1440" ${settings.display_resolution === '2560x1440' ? 'selected' : ''}>2560x1440 (QHD)</option>
+                    <option value="3840x2160" ${settings.display_resolution === '3840x2160' ? 'selected' : ''}>3840x2160 (4K)</option>
+                  </select>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-gray-400">تأثيرات GPU</span>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input id="set-animations" type="checkbox" ${settings.enable_gpu_animations ? 'checked' : ''} class="sr-only peer">
+                    <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-cyan-500 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:right-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            <div class="rounded-xl bg-gray-900/50 border border-white/10 p-6">
+              <h3 class="text-lg font-semibold mb-4">إعدادات الذكاء الاصطناعي</h3>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">مزود الخدمة</label>
+                  <select id="set-provider" class="w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white">
+                    <option value="openai" ${settings.ai_provider === 'openai' ? 'selected' : ''}>OpenAI</option>
+                    <option value="anthropic" ${settings.ai_provider === 'anthropic' ? 'selected' : ''}>Anthropic</option>
+                    <option value="gemini" ${settings.ai_provider === 'gemini' ? 'selected' : ''}>Google Gemini</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">النموذج الافتراضي</label>
+                  <select id="set-model" class="w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white">
+                    <option value="gpt-4o-mini" ${settings.default_ai_model === 'gpt-4o-mini' ? 'selected' : ''}>GPT-4o Mini</option>
+                    <option value="gpt-4o" ${settings.default_ai_model === 'gpt-4o' ? 'selected' : ''}>GPT-4o</option>
+                    <option value="claude-4-sonnet" ${settings.default_ai_model === 'claude-4-sonnet' ? 'selected' : ''}>Claude 4 Sonnet</option>
+                    <option value="gemini-2.0-flash" ${settings.default_ai_model === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini 2.0 Flash</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">مفتاح API</label>
+                  <input id="set-apikey" type="password" value="${settings.api_key || ''}" placeholder="sk-..." 
+                    class="w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white">
+                </div>
+                <div>
+                  <label class="block text-sm text-gray-400 mb-2">اللغة</label>
+                  <select id="set-language" class="w-full px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white">
+                    <option value="ar" ${settings.language === 'ar' ? 'selected' : ''}>العربية</option>
+                    <option value="en" ${settings.language === 'en' ? 'selected' : ''}>English</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <button onclick="saveAllSettings()" 
+            class="px-8 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-medium hover:opacity-90">
+            حفظ الإعدادات
+          </button>
+        </div>
+      `;
+    }
+    
+    function renderChatPanel() {
+      return `
+        <div class="fixed left-0 top-0 h-full w-96 bg-gray-900/95 border-r border-cyan-500/20 flex flex-col z-50">
+          <div class="p-4 border-b border-cyan-500/20 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">🤖</div>
+              <div>
+                <h3 class="font-semibold">مساعد الذكاء</h3>
+                <p class="text-xs text-gray-500">AI Assistant</p>
+              </div>
+            </div>
+            <button onclick="chatOpen=false;render()" class="p-2 rounded-lg hover:bg-white/5 text-gray-400">✕</button>
+          </div>
+          
+          ${chatMessages.length === 0 ? `
+            <div class="p-4 border-b border-white/5">
+              <p class="text-sm text-gray-400 mb-3">اختر موضوعاً للبدء:</p>
+              <div class="grid grid-cols-2 gap-2">
+                <button onclick="sendChatMessage(null, 'gpu_problem')" class="p-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 hover:bg-white/10">حل مشكلة GPU</button>
+                <button onclick="sendChatMessage(null, 'benchmark_analysis')" class="p-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 hover:bg-white/10">تحليل Benchmark</button>
+                <button onclick="sendChatMessage(null, 'optimal_settings')" class="p-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 hover:bg-white/10">إعدادات مثالية</button>
+                <button onclick="sendChatMessage(null, 'app_guide')" class="p-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 hover:bg-white/10">شرح التطبيق</button>
+              </div>
+            </div>
+          ` : ''}
+          
+          <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4">
+            ${chatMessages.map(m => `
+              <div class="flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}">
+                <div class="max-w-[80%] p-3 rounded-xl ${m.role === 'user' ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white' : 'bg-white/10 text-gray-200'}">
+                  <p class="text-sm whitespace-pre-wrap">${m.content}</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          
+          <div class="p-4 border-t border-cyan-500/20">
+            <div class="flex gap-2">
+              <input id="chat-input" type="text" placeholder="اكتب رسالتك..." 
+                onkeypress="if(event.key==='Enter')sendChatMessage(this.value)"
+                class="flex-1 px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white placeholder-gray-500">
+              <button onclick="sendChatMessage(document.getElementById('chat-input').value)" 
+                class="px-4 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white">➤</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function renderChat() {
+      const container = document.getElementById('chat-messages');
+      if (container) {
+        container.innerHTML = chatMessages.map(m => `
+          <div class="flex ${m.role === 'user' ? 'justify-start' : 'justify-end'}">
+            <div class="max-w-[80%] p-3 rounded-xl ${m.role === 'user' ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white' : 'bg-white/10 text-gray-200'}">
+              <p class="text-sm whitespace-pre-wrap">${m.content}</p>
+            </div>
+          </div>
+        `).join('');
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+    
+    async function selectModelsDir() {
+      if (window.electronAPI) {
+        const dir = await window.electronAPI.selectDirectory();
+        if (dir) {
+          document.getElementById('set-models-dir').value = dir;
+        }
+      }
+    }
+    
+    function saveAllSettings() {
+      const newSettings = {
+        models_directory: document.getElementById('set-models-dir')?.value,
+        display_resolution: document.getElementById('set-resolution')?.value,
+        enable_gpu_animations: document.getElementById('set-animations')?.checked,
+        ai_provider: document.getElementById('set-provider')?.value,
+        default_ai_model: document.getElementById('set-model')?.value,
+        api_key: document.getElementById('set-apikey')?.value,
+        language: document.getElementById('set-language')?.value
+      };
+      saveSettings(newSettings);
+    }
+    
+    // Initialize app
+    init();
+  </script>
+</body>
+</html>

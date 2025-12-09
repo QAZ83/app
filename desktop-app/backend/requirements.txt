@@ -1,0 +1,25 @@
+# AI Forge Studio - Desktop Backend Requirements
+# Python 3.10+
+
+# Core
+fastapi>=0.100.0
+uvicorn>=0.22.0
+pydantic>=2.0.0
+
+# GPU Monitoring
+pynvml>=11.5.0
+
+# CUDA Computing (optional - install with CUDA toolkit)
+# cupy-cuda12x  # For CUDA 12.x
+# cupy-cuda11x  # For CUDA 11.x
+
+# AI Inference
+onnxruntime-gpu>=1.16.0
+numpy>=1.24.0
+
+# AI Chat (optional)
+emergentintegrations>=0.1.0
+
+# Utilities
+python-dotenv>=1.0.0
+aiofiles>=23.0.0

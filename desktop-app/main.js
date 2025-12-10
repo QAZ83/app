@@ -300,11 +300,11 @@ ipcMain.handle('select-file', async (event, filters) => {
 });
 
 // App event handlers
-app.whenReady().then(() => {
-  startBackend();
+app.whenReady().then(async () => {
+  await startBackend();
   
   // Wait for backend to start
-  setTimeout(createWindow, 2000);
+  setTimeout(createWindow, 1500);
   
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

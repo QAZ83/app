@@ -79,3 +79,7 @@ agenthub/agents/youtube/db
 # Mobile development
 android-sdk/ desktop-app/node_modules/electron/dist/electron
 desktop-app/node_modules/electron/dist/electron
+-e 
+# Environment files
+*.env
+*.env.*

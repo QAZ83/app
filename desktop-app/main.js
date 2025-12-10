@@ -21,8 +21,34 @@ let backendProcess = null;
 let backendPort = store.get('backendPort');
 const isDev = process.argv.includes('--dev');
 
+// Check if backend is already running
+async function isBackendRunning() {
+  try {
+    const http = require('http');
+    return new Promise((resolve) => {
+      const req = http.get(`http://127.0.0.1:${backendPort}/api/`, (res) => {
+        resolve(res.statusCode === 200);
+      });
+      req.on('error', () => resolve(false));
+      req.setTimeout(1000, () => {
+        req.destroy();
+        resolve(false);
+      });
+    });
+  } catch {
+    return false;
+  }
+}
+
 // Backend server management
-function startBackend() {
+async function startBackend() {
+  // Check if backend is already running
+  const alreadyRunning = await isBackendRunning();
+  if (alreadyRunning) {
+    console.log('Backend is already running on port ' + backendPort);
+    return;
+  }
+
   const backendPath = isDev 
     ? path.join(__dirname, 'backend')
     : path.join(process.resourcesPath, 'backend');
@@ -36,8 +62,7 @@ function startBackend() {
     '-m', 'uvicorn',
     'server:app',
     '--host', '127.0.0.1',
-    '--port', backendPort.toString(),
-    '--reload'
+    '--port', backendPort.toString()
   ], {
     cwd: backendPath,
     env: { ...process.env, PYTHONUNBUFFERED: '1' }
@@ -57,8 +82,13 @@ function startBackend() {
   
   backendProcess.on('error', (err) => {
     console.error('Failed to start backend:', err);
-    dialog.showErrorBox('Backend Error', 
-      'Failed to start the backend server. Please ensure Python is installed and in your PATH.');
+    // Show info instead of error if backend might be running externally
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Backend Notice',
+      message: 'Could not start backend automatically.',
+      detail: 'Please run the backend manually:\n\ncd backend\npython -m uvicorn server:app --host 127.0.0.1 --port 8080'
+    });
   });
 }
 

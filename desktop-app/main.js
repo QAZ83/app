@@ -46,34 +46,76 @@ async function startBackend() {
   const alreadyRunning = await isBackendRunning();
   if (alreadyRunning) {
     console.log('Backend is already running on port ' + backendPort);
-    return;
+    return true;
   }
 
-  const backendPath = isDev 
-    ? path.join(__dirname, 'backend')
-    : path.join(process.resourcesPath, 'backend');
-  
-  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  // Determine paths
+  const appPath = isDev ? __dirname : process.resourcesPath;
+  const backendExePath = path.join(appPath, 'backend_server.exe');
+  const backendPyPath = path.join(appPath, 'backend');
   
   console.log('Starting backend server...');
-  console.log('Backend path:', backendPath);
   
-  backendProcess = spawn(pythonPath, [
-    '-m', 'uvicorn',
-    'server:app',
-    '--host', '127.0.0.1',
-    '--port', backendPort.toString()
-  ], {
-    cwd: backendPath,
-    env: { ...process.env, PYTHONUNBUFFERED: '1' }
-  });
+  // Try to run backend.exe first (packaged version)
+  if (require('fs').existsSync(backendExePath)) {
+    console.log('Found backend_server.exe, starting...');
+    backendProcess = spawn(backendExePath, [], {
+      cwd: appPath,
+      env: { ...process.env },
+      windowsHide: true
+    });
+  } 
+  // Try Python with full path
+  else {
+    const pythonPaths = [
+      'python',
+      'py',
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python311', 'python.exe'),
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python312', 'python.exe'),
+      path.join(process.env.LOCALAPPDATA || '', 'Python', 'pythoncore-3.14-64', 'python.exe')
+    ];
+    
+    let pythonPath = null;
+    for (const p of pythonPaths) {
+      try {
+        require('child_process').execSync(`"${p}" --version`, { stdio: 'ignore' });
+        pythonPath = p;
+        break;
+      } catch {}
+    }
+    
+    if (!pythonPath) {
+      console.error('Python not found');
+      dialog.showMessageBox({
+        type: 'info',
+        title: 'Backend Notice',
+        message: 'Please run backend manually',
+        detail: 'cd backend\npython -m uvicorn server:app --host 127.0.0.1 --port 8080'
+      });
+      return false;
+    }
+    
+    console.log('Using Python:', pythonPath);
+    console.log('Backend path:', backendPyPath);
+    
+    backendProcess = spawn(pythonPath, [
+      '-m', 'uvicorn',
+      'server:app',
+      '--host', '127.0.0.1',
+      '--port', backendPort.toString()
+    ], {
+      cwd: backendPyPath,
+      env: { ...process.env, PYTHONUNBUFFERED: '1' },
+      windowsHide: true
+    });
+  }
   
   backendProcess.stdout.on('data', (data) => {
     console.log(`Backend: ${data}`);
   });
   
   backendProcess.stderr.on('data', (data) => {
-    console.error(`Backend Error: ${data}`);
+    console.error(`Backend: ${data}`);
   });
   
   backendProcess.on('close', (code) => {

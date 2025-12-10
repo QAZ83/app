@@ -251,8 +251,9 @@ async def create_status_check(input: StatusCheckCreate):
     return status_obj
 
 @api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
+async def get_status_checks(limit: int = 20):
+    """Get status checks with pagination"""
+    status_checks = await db.status_checks.find({}, {"_id": 0}).sort("timestamp", -1).to_list(limit)
     for check in status_checks:
         if isinstance(check['timestamp'], str):
             check['timestamp'] = datetime.fromisoformat(check['timestamp'])

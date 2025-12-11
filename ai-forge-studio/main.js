@@ -82,56 +82,79 @@ function getSimulatedGpuMetrics() {
 }
 
 // ============================================
-// AI Chat Module (Mock + Extension Point)
+// AI Chat Module (OpenAI via Emergent LLM Key)
 // ============================================
+const EMERGENT_LLM_KEY = 'sk-emergent-c040cF2BeD3832d9c7';
+const SYSTEM_PROMPT = `أنت مساعد ذكي متخصص في أداء GPU وتقنيات NVIDIA وتحسين استدلال الذكاء الاصطناعي.
+يمكنك المساعدة في:
+- تحليل أداء GPU ومراقبته
+- تحسين نماذج الذكاء الاصطناعي
+- حل المشكلات التقنية
+- شرح تقنيات TensorRT و CUDA
+أجب باللغة العربية عندما يتحدث المستخدم بالعربية.`;
+
 async function handleChatMessage(message, model) {
-  // TODO: Replace with real API call
-  // Example for OpenAI:
-  // const response = await fetch('https://api.openai.com/v1/chat/completions', {...});
+  // First try with stored API key
+  let apiKey = store.get('aiApiKey');
+  const provider = store.get('aiProvider') || 'openai';
   
-  const apiKey = store.get('aiApiKey');
-  const provider = store.get('aiProvider');
-  
-  if (apiKey && provider === 'openai') {
-    try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: model || 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: 'You are an AI assistant specialized in GPU performance, NVIDIA technologies, and AI inference optimization.' },
-            { role: 'user', content: message }
-          ]
-        })
-      });
-      const data = await response.json();
-      return {
-        reply: data.choices?.[0]?.message?.content || 'No response',
-        model: model,
-        isReal: true
-      };
-    } catch (error) {
-      console.error('AI API error:', error);
-    }
+  // If no stored key, use Emergent LLM Key
+  if (!apiKey) {
+    apiKey = EMERGENT_LLM_KEY;
   }
   
-  // Mock response
-  const mockResponses = [
-    'I can help you optimize your GPU performance. What specific aspect would you like to improve?',
-    'For TensorRT optimization, consider using FP16 precision for a good balance of speed and accuracy.',
-    'Your RTX 5090 supports advanced features like DLSS 4 and hardware ray tracing.',
-    'To reduce inference latency, try batching multiple requests together.'
-  ];
+  const modelName = model || store.get('aiModel') || 'gpt-4o-mini';
   
-  return {
-    reply: mockResponses[Math.floor(Math.random() * mockResponses.length)],
-    model: 'mock-assistant',
-    isReal: false
-  };
+  try {
+    // Determine API endpoint based on provider
+    let apiEndpoint = 'https://api.openai.com/v1/chat/completions';
+    let requestBody = {
+      model: modelName,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: message }
+      ],
+      max_tokens: 1024,
+      temperature: 0.7
+    };
+    
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return {
+      reply: data.choices?.[0]?.message?.content || 'لم أتمكن من الحصول على رد.',
+      model: modelName,
+      isReal: true
+    };
+  } catch (error) {
+    console.error('AI API error:', error);
+    
+    // Fallback to mock response if API fails
+    const mockResponses = [
+      'يمكنني مساعدتك في تحسين أداء GPU. ما الجانب الذي تريد تحسينه؟',
+      'لتحسين TensorRT، جرب استخدام دقة FP16 للتوازن بين السرعة والدقة.',
+      'بطاقتك RTX تدعم ميزات متقدمة مثل DLSS وتتبع الأشعة.',
+      'لتقليل زمن الاستجابة، جرب تجميع الطلبات معًا.'
+    ];
+    
+    return {
+      reply: mockResponses[Math.floor(Math.random() * mockResponses.length)],
+      model: 'mock-assistant',
+      isReal: false,
+      error: error.message
+    };
+  }
 }
 
 // ============================================

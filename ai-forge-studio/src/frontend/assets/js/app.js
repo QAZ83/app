@@ -1,585 +1,870 @@
 /**
- * AI Forge Studio - Main Application Script
- * Handles UI rendering, navigation, and API interactions
+ * AI Forge Studio - Main Application
+ * Frontend JavaScript Application
  */
 
-// ============================================
-// Application State
-// ============================================
+// State Management
 const AppState = {
   currentPage: 'dashboard',
   gpuMetrics: null,
   settings: {},
   chatMessages: [],
-  chatOpen: false,
-  inferenceLog: [],
-  isLoading: false
+  isChatOpen: false,
+  isLoading: true,
+  metricsInterval: null
 };
 
-// ============================================
 // Icons (SVG)
-// ============================================
 const Icons = {
-  dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
-  inference: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
-  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
-  settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-  gpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8"/><line x1="4" y1="12" x2="2" y2="12"/><line x1="22" y1="12" x2="20" y2="12"/><line x1="12" y1="4" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="20"/></svg>',
-  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
-  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
-  play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>',
-  robot: '🤖',
-  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'
+  dashboard: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>',
+  gpu: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>',
+  inference: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>',
+  chat: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>',
+  settings: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
+  temperature: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path></svg>',
+  memory: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01"></path></svg>',
+  power: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>',
+  clock: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
+  fan: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12c-2-2.67-2-6.33 0-9 2.67 2 6.33 2 9 0-2 2.67-2 6.33 0 9-2.67-2-6.33-2-9 0 2-2.67 2-6.33 0-9-2.67 2-6.33 2-9 0"></path><circle cx="12" cy="12" r="2"></circle></svg>',
+  search: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>',
+  bell: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>',
+  send: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>',
+  close: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>',
+  play: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>',
+  activity: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>',
+  check: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+  info: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
+  sparkles: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path></svg>'
 };
 
-// ============================================
-// API Wrapper
-// ============================================
-const API = {
-  async getGpuMetrics() {
-    if (window.AIForgeAPI) {
-      return await window.AIForgeAPI.getGpuMetrics();
-    }
-    // Fallback for browser testing
-    return {
-      name: 'NVIDIA GeForce RTX 5090 (Demo)',
-      vendor: 'NVIDIA',
-      driver: '560.94',
-      temperature: Math.floor(Math.random() * 30 + 45),
-      utilization: Math.floor(Math.random() * 60 + 20),
-      memoryUsed: Math.floor(Math.random() * 12000 + 4000),
-      memoryTotal: 32768,
-      fanSpeed: Math.floor(Math.random() * 40 + 30),
-      clockCore: Math.floor(Math.random() * 400 + 2400),
-      powerDraw: Math.floor(Math.random() * 250 + 200),
-      powerLimit: 575,
-      isReal: false
-    };
-  },
+// Navigation items
+const NavItems = [
+  { id: 'dashboard', icon: 'dashboard', label: 'لوحة التحكم', section: 'main' },
+  { id: 'gpu', icon: 'gpu', label: 'مراقبة GPU', section: 'main' },
+  { id: 'inference', icon: 'inference', label: 'الاستدلال', section: 'main' },
+  { id: 'chat', icon: 'chat', label: 'مساعد AI', section: 'tools' },
+  { id: 'settings', icon: 'settings', label: 'الإعدادات', section: 'system' }
+];
 
-  async sendChatMessage(message, model) {
-    if (window.AIForgeAPI) {
-      return await window.AIForgeAPI.sendChatMessage({ message, model });
-    }
-    // Mock response
-    await new Promise(r => setTimeout(r, 1000));
-    return {
-      reply: 'This is a demo response. Connect to a real AI backend for actual responses.',
-      model: 'demo',
-      isReal: false
-    };
-  },
-
-  async runInference(config) {
-    if (window.AIForgeAPI) {
-      return await window.AIForgeAPI.runInference(config);
-    }
-    // Mock response
-    await new Promise(r => setTimeout(r, 500));
-    return {
-      model: config.model,
-      precision: config.precision,
-      batchSize: config.batchSize,
-      latencyMs: (Math.random() * 10 + 2).toFixed(2),
-      throughput: (Math.random() * 500 + 100).toFixed(1),
-      gpuMemoryMB: Math.floor(Math.random() * 2000 + 1000),
-      isReal: false
-    };
-  },
-
-  async getSetting(key) {
-    if (window.AIForgeAPI) {
-      return await window.AIForgeAPI.getSetting(key);
-    }
-    return AppState.settings[key];
-  },
-
-  async setSetting(key, value) {
-    if (window.AIForgeAPI) {
-      return await window.AIForgeAPI.setSetting(key, value);
-    }
-    AppState.settings[key] = value;
-    return true;
+// Initialize Application
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('AI Forge Studio Initializing...');
+  
+  try {
+    // Load settings
+    AppState.settings = await window.AIForgeAPI.getAllSettings();
+    
+    // Render UI
+    renderSidebar();
+    renderTopbar();
+    renderChatPanel();
+    
+    // Navigate to dashboard
+    navigateTo('dashboard');
+    
+    // Start metrics polling
+    startMetricsPolling();
+    
+    // Listen for navigation events from menu
+    window.AIForgeAPI.onNavigate((page) => {
+      navigateTo(page);
+    });
+    
+    AppState.isLoading = false;
+    console.log('AI Forge Studio Ready');
+  } catch (error) {
+    console.error('Initialization error:', error);
   }
-};
+});
 
-// ============================================
-// Component Renderers
-// ============================================
+// Render Sidebar
 function renderSidebar() {
-  const navItems = [
-    { id: 'dashboard', icon: Icons.dashboard, label: 'لوحة التحكم' },
-    { id: 'inference', icon: Icons.inference, label: 'الاستدلال' },
-    { id: 'settings', icon: Icons.settings, label: 'الإعدادات' }
-  ];
-
-  return `
+  const sidebar = document.getElementById('sidebar');
+  const mainItems = NavItems.filter(i => i.section === 'main');
+  const toolItems = NavItems.filter(i => i.section === 'tools');
+  const systemItems = NavItems.filter(i => i.section === 'system');
+  
+  sidebar.innerHTML = `
     <div class="sidebar-header">
-      <div class="sidebar-logo">AI Forge Studio</div>
-      <div class="sidebar-subtitle">${AppState.gpuMetrics?.isReal ? '🟢 GPU متصل' : '🟡 وضع العرض'}</div>
+      <div class="sidebar-logo">${Icons.sparkles}</div>
+      <div class="sidebar-title">
+        <h1>AI Forge Studio</h1>
+        <span>GPU Inference Suite</span>
+      </div>
     </div>
+    
     <nav class="sidebar-nav">
-      ${navItems.map(item => `
-        <div class="nav-item ${AppState.currentPage === item.id ? 'active' : ''}" onclick="navigateTo('${item.id}')">
-          <span class="nav-icon">${item.icon}</span>
-          <span>${item.label}</span>
-        </div>
-      `).join('')}
+      <div class="nav-section">
+        <div class="nav-section-title">الرئيسية</div>
+        ${mainItems.map(item => renderNavItem(item)).join('')}
+      </div>
+      
+      <div class="nav-section">
+        <div class="nav-section-title">الأدوات</div>
+        ${toolItems.map(item => renderNavItem(item)).join('')}
+      </div>
+      
+      <div class="nav-section">
+        <div class="nav-section-title">النظام</div>
+        ${systemItems.map(item => renderNavItem(item)).join('')}
+      </div>
     </nav>
+    
     <div class="sidebar-footer">
-      <button class="chat-toggle-btn" onclick="toggleChat()">
-        ${Icons.robot} مساعد الذكاء
-      </button>
+      <div class="gpu-status-mini">
+        <div class="gpu-status-indicator"></div>
+        <div class="gpu-status-text">
+          <strong id="sidebar-gpu-name">جارٍ التحميل...</strong>
+          <span id="sidebar-gpu-status">—</span>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Add click handlers
+  sidebar.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const page = item.dataset.page;
+      if (page === 'chat') {
+        toggleChatPanel();
+      } else {
+        navigateTo(page);
+      }
+    });
+  });
+}
+
+function renderNavItem(item) {
+  return `
+    <div class="nav-item ${AppState.currentPage === item.id ? 'active' : ''}" data-page="${item.id}">
+      <span class="nav-item-icon">${Icons[item.icon]}</span>
+      <span class="nav-item-text">${item.label}</span>
     </div>
   `;
 }
 
+// Render Topbar
 function renderTopbar() {
-  const titles = {
+  const topbar = document.getElementById('topbar');
+  
+  topbar.innerHTML = `
+    <div class="topbar-left">
+      <h2 class="page-title" id="page-title">لوحة التحكم</h2>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-search">
+        <span class="topbar-search-icon">${Icons.search}</span>
+        <input type="text" placeholder="بحث..." />
+      </div>
+      <button class="topbar-btn" id="btn-notifications" title="الإشعارات">
+        ${Icons.bell}
+        <span class="notification-badge">3</span>
+      </button>
+      <button class="topbar-btn ${AppState.isChatOpen ? 'active' : ''}" id="btn-chat" title="مساعد AI">
+        ${Icons.chat}
+      </button>
+    </div>
+  `;
+  
+  document.getElementById('btn-chat').addEventListener('click', toggleChatPanel);
+}
+
+// Render Chat Panel
+function renderChatPanel() {
+  const chatPanel = document.getElementById('chat-panel');
+  
+  chatPanel.innerHTML = `
+    <div class="chat-header">
+      <span class="chat-title">
+        <span class="chat-title-icon">${Icons.sparkles}</span>
+        مساعد AI
+      </span>
+      <button class="btn btn-ghost btn-icon" id="close-chat">${Icons.close}</button>
+    </div>
+    
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-message assistant">
+        مرحباً! أنا مساعدك الذكي في AI Forge Studio. كيف يمكنني مساعدتك اليوم؟ يمكنني المساعدة في:
+        <br><br>
+        • تحليل أداء GPU<br>
+        • تحسين الاستدلال<br>
+        • حل المشكلات التقنية
+      </div>
+    </div>
+    
+    <div class="chat-input-container">
+      <div class="chat-input-wrapper">
+        <input type="text" class="chat-input" id="chat-input" placeholder="اكتب رسالتك..." />
+        <button class="chat-send-btn" id="chat-send">${Icons.send}</button>
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('close-chat').addEventListener('click', toggleChatPanel);
+  document.getElementById('chat-send').addEventListener('click', sendChatMessage);
+  document.getElementById('chat-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendChatMessage();
+  });
+}
+
+// Toggle Chat Panel
+function toggleChatPanel() {
+  AppState.isChatOpen = !AppState.isChatOpen;
+  const chatPanel = document.getElementById('chat-panel');
+  const chatBtn = document.getElementById('btn-chat');
+  
+  if (AppState.isChatOpen) {
+    chatPanel.classList.remove('hidden');
+    chatPanel.classList.add('visible');
+    chatBtn.classList.add('active');
+  } else {
+    chatPanel.classList.add('hidden');
+    chatPanel.classList.remove('visible');
+    chatBtn.classList.remove('active');
+  }
+}
+
+// Send Chat Message
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  const message = input.value.trim();
+  if (!message) return;
+  
+  // Clear input
+  input.value = '';
+  
+  // Add user message
+  addChatMessage(message, 'user');
+  
+  // Show typing indicator
+  showTypingIndicator();
+  
+  try {
+    const response = await window.AIForgeAPI.sendChatMessage({
+      message: message,
+      model: AppState.settings.aiModel || 'gpt-4o-mini'
+    });
+    
+    // Remove typing indicator
+    removeTypingIndicator();
+    
+    // Add assistant response
+    addChatMessage(response.reply, 'assistant');
+  } catch (error) {
+    removeTypingIndicator();
+    addChatMessage('عذراً، حدث خطأ. يرجى المحاولة مرة أخرى.', 'assistant');
+  }
+}
+
+function addChatMessage(text, type) {
+  const messagesContainer = document.getElementById('chat-messages');
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `chat-message ${type}`;
+  messageDiv.textContent = text;
+  messagesContainer.appendChild(messageDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function showTypingIndicator() {
+  const messagesContainer = document.getElementById('chat-messages');
+  const typingDiv = document.createElement('div');
+  typingDiv.className = 'chat-message assistant typing';
+  typingDiv.id = 'typing-indicator';
+  typingDiv.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+  messagesContainer.appendChild(typingDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const typing = document.getElementById('typing-indicator');
+  if (typing) typing.remove();
+}
+
+// Navigation
+function navigateTo(page) {
+  AppState.currentPage = page;
+  
+  // Update nav items
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.page === page);
+  });
+  
+  // Update page title
+  const pageTitle = document.getElementById('page-title');
+  const pageTitles = {
     dashboard: 'لوحة التحكم',
+    gpu: 'مراقبة GPU',
     inference: 'الاستدلال',
     settings: 'الإعدادات'
   };
-
-  return `
-    <h1 class="page-title">${titles[AppState.currentPage] || 'AI Forge Studio'}</h1>
-    <div class="status-badge ${AppState.gpuMetrics?.isReal ? '' : 'warning'}">
-      <span class="status-dot"></span>
-      <span>${AppState.gpuMetrics?.isReal ? 'GPU حقيقي' : 'محاكاة'}</span>
-    </div>
-  `;
+  pageTitle.textContent = pageTitles[page] || page;
+  
+  // Render page content
+  const pageContent = document.getElementById('page-content');
+  
+  switch(page) {
+    case 'dashboard':
+      renderDashboard(pageContent);
+      break;
+    case 'gpu':
+      renderGpuPage(pageContent);
+      break;
+    case 'inference':
+      renderInferencePage(pageContent);
+      break;
+    case 'settings':
+      renderSettingsPage(pageContent);
+      break;
+    default:
+      pageContent.innerHTML = '<div class="empty-state"><p>الصفحة غير موجودة</p></div>';
+  }
 }
 
-function renderDashboard() {
-  const gpu = AppState.gpuMetrics || {};
-  const memPercent = gpu.memoryTotal ? ((gpu.memoryUsed / gpu.memoryTotal) * 100).toFixed(1) : 0;
-  const memUsedGB = gpu.memoryUsed ? (gpu.memoryUsed / 1024).toFixed(1) : 0;
-  const memTotalGB = gpu.memoryTotal ? (gpu.memoryTotal / 1024).toFixed(1) : 0;
+// Render Dashboard
+function renderDashboard(container) {
+  const metrics = AppState.gpuMetrics || {};
+  
+  container.innerHTML = `
+    <div class="grid grid-cols-4 gap-4 mb-4">
+      <div class="card metric-card">
+        <div class="metric-icon">${Icons.activity}</div>
+        <div class="metric-label">استخدام GPU</div>
+        <div class="metric-value">${metrics.utilization || 0}<span class="metric-unit">%</span></div>
+        <div class="progress-bar mt-2">
+          <div class="progress-fill gradient" style="width: ${metrics.utilization || 0}%"></div>
+        </div>
+      </div>
+      
+      <div class="card metric-card">
+        <div class="metric-icon">${Icons.temperature}</div>
+        <div class="metric-label">درجة الحرارة</div>
+        <div class="metric-value">${metrics.temperature || 0}<span class="metric-unit">°C</span></div>
+        <div class="progress-bar mt-2">
+          <div class="progress-fill ${getTemperatureColor(metrics.temperature)}" style="width: ${(metrics.temperature || 0) / 100 * 100}%"></div>
+        </div>
+      </div>
+      
+      <div class="card metric-card">
+        <div class="metric-icon">${Icons.memory}</div>
+        <div class="metric-label">ذاكرة VRAM</div>
+        <div class="metric-value">${formatMemory(metrics.memoryUsed)}<span class="metric-unit">/${formatMemory(metrics.memoryTotal)}</span></div>
+        <div class="progress-bar mt-2">
+          <div class="progress-fill gradient" style="width: ${getMemoryPercent(metrics)}%"></div>
+        </div>
+      </div>
+      
+      <div class="card metric-card">
+        <div class="metric-icon">${Icons.power}</div>
+        <div class="metric-label">استهلاك الطاقة</div>
+        <div class="metric-value">${metrics.powerDraw || 0}<span class="metric-unit">W</span></div>
+        <div class="progress-bar mt-2">
+          <div class="progress-fill warning" style="width: ${((metrics.powerDraw || 0) / (metrics.powerLimit || 450)) * 100}%"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-3 gap-4">
+      <div class="card col-span-2">
+        <div class="card-header">
+          <h3 class="card-title">
+            <span class="card-title-icon">${Icons.gpu}</span>
+            معلومات GPU
+          </h3>
+          <span class="status-badge ${metrics.isReal ? 'online' : 'warning'}">
+            <span class="status-dot"></span>
+            ${metrics.isReal ? 'متصل' : 'محاكاة'}
+          </span>
+        </div>
+        <div class="gpu-info-grid">
+          <div class="info-row">
+            <span class="info-label">اسم GPU</span>
+            <span class="info-value" id="gpu-name">${metrics.name || 'غير معروف'}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">المصنع</span>
+            <span class="info-value">${metrics.vendor || 'غير معروف'}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">برنامج التشغيل</span>
+            <span class="info-value">${metrics.driver || 'N/A'}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">تردد النواة</span>
+            <span class="info-value">${metrics.clockCore || 0} MHz</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">تردد الذاكرة</span>
+            <span class="info-value">${metrics.clockMemory || 0} MHz</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">PCIe</span>
+            <span class="info-value">Gen ${metrics.pcieGen || 4} x${metrics.pcieWidth || 16}</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">
+            <span class="card-title-icon">${Icons.fan}</span>
+            التبريد
+          </h3>
+        </div>
+        <div class="fan-display">
+          <div class="fan-icon ${metrics.fanSpeed > 50 ? 'fast' : ''}">${Icons.fan}</div>
+          <div class="fan-speed">${metrics.fanSpeed || 0}%</div>
+          <div class="fan-label">سرعة المروحة</div>
+        </div>
+        <div class="progress-bar mt-4">
+          <div class="progress-fill gradient" style="width: ${metrics.fanSpeed || 0}%"></div>
+        </div>
+      </div>
+    </div>
+    
+    <style>
+      .gpu-info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+      }
+      .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border-color);
+      }
+      .info-label {
+        color: var(--text-muted);
+        font-size: 0.875rem;
+      }
+      .info-value {
+        color: var(--text-primary);
+        font-weight: 500;
+        font-size: 0.875rem;
+      }
+      .fan-display {
+        text-align: center;
+        padding: 1.5rem 0;
+      }
+      .fan-icon {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--accent-primary);
+      }
+      .fan-icon svg {
+        width: 48px;
+        height: 48px;
+      }
+      .fan-icon.fast svg {
+        animation: spin 1s linear infinite;
+      }
+      .fan-speed {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+      .fan-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+      }
+    </style>
+  `;
+  
+  // Update sidebar GPU info
+  document.getElementById('sidebar-gpu-name').textContent = metrics.name || 'جارٍ التحميل...';
+  document.getElementById('sidebar-gpu-status').textContent = `${metrics.temperature || 0}°C • ${metrics.utilization || 0}%`;
+}
 
-  return `
-    <div class="animate-fadeIn">
-      <!-- GPU Info Card -->
-      <div class="gpu-info-card mb-4">
-        <div class="gpu-header">
-          <div class="gpu-icon">${Icons.gpu}</div>
-          <div>
-            <div class="gpu-name">${gpu.name || 'Loading...'}</div>
-            <div class="gpu-driver">Driver: ${gpu.driver || 'N/A'}</div>
+// Render GPU Page
+function renderGpuPage(container) {
+  const metrics = AppState.gpuMetrics || {};
+  
+  container.innerHTML = `
+    <div class="card mb-4">
+      <div class="card-header">
+        <h3 class="card-title">
+          <span class="card-title-icon">${Icons.gpu}</span>
+          ${metrics.name || 'GPU'}
+        </h3>
+        <span class="status-badge ${metrics.isReal ? 'online' : 'warning'}">
+          <span class="status-dot"></span>
+          ${metrics.isReal ? 'بيانات حقيقية' : 'محاكاة'}
+        </span>
+      </div>
+      
+      <div class="grid grid-cols-3 gap-4 mt-4">
+        <div class="metric-mini">
+          <span class="metric-mini-label">الاستخدام</span>
+          <span class="metric-mini-value">${metrics.utilization || 0}%</span>
+          <div class="progress-bar mt-1">
+            <div class="progress-fill gradient" style="width: ${metrics.utilization || 0}%"></div>
           </div>
         </div>
         
-        <div class="memory-section">
-          <div class="memory-header">
-            <span class="memory-label">الذاكرة</span>
-            <span class="memory-value">${memUsedGB} / ${memTotalGB} GB</span>
-          </div>
-          <div class="memory-bar">
-            <div class="memory-bar-fill" style="width: ${memPercent}%"></div>
+        <div class="metric-mini">
+          <span class="metric-mini-label">الحرارة</span>
+          <span class="metric-mini-value">${metrics.temperature || 0}°C</span>
+          <div class="progress-bar mt-1">
+            <div class="progress-fill ${getTemperatureColor(metrics.temperature)}" style="width: ${metrics.temperature || 0}%"></div>
           </div>
         </div>
-
-        <div class="grid grid-cols-4">
-          ${renderMetricCard('درجة الحرارة', gpu.temperature, '°C', 100, 'primary')}
-          ${renderMetricCard('استخدام GPU', gpu.utilization, '%', 100, 'success')}
-          ${renderMetricCard('استهلاك الطاقة', gpu.powerDraw, 'W', gpu.powerLimit || 575, 'warning')}
-          ${renderMetricCard('سرعة الساعة', gpu.clockCore, 'MHz', 3000, 'purple')}
+        
+        <div class="metric-mini">
+          <span class="metric-mini-label">VRAM</span>
+          <span class="metric-mini-value">${formatMemory(metrics.memoryUsed)} / ${formatMemory(metrics.memoryTotal)}</span>
+          <div class="progress-bar mt-1">
+            <div class="progress-fill gradient" style="width: ${getMemoryPercent(metrics)}%"></div>
+          </div>
         </div>
-      </div>
-
-      <!-- Additional Metrics -->
-      <div class="grid grid-cols-4">
-        ${renderMetricCard('سرعة المروحة', gpu.fanSpeed, '%', 100, 'primary')}
-        ${renderMetricCard('PCIe Gen', gpu.pcieGen || 5, '', 5, 'success')}
-        ${renderMetricCard('PCIe Width', gpu.pcieWidth || 16, 'x', 16, 'purple')}
-        ${renderMetricCard('الحد الأقصى للطاقة', gpu.powerLimit, 'W', 600, 'warning')}
       </div>
     </div>
+    
+    <div class="grid grid-cols-2 gap-4">
+      <div class="card">
+        <h4 class="card-title mb-4">
+          <span class="card-title-icon">${Icons.clock}</span>
+          الترددات
+        </h4>
+        <div class="stats-list">
+          <div class="stat-item">
+            <span>تردد النواة</span>
+            <strong>${metrics.clockCore || 0} MHz</strong>
+          </div>
+          <div class="stat-item">
+            <span>تردد الذاكرة</span>
+            <strong>${metrics.clockMemory || 0} MHz</strong>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h4 class="card-title mb-4">
+          <span class="card-title-icon">${Icons.power}</span>
+          الطاقة
+        </h4>
+        <div class="stats-list">
+          <div class="stat-item">
+            <span>الاستهلاك الحالي</span>
+            <strong>${metrics.powerDraw || 0} W</strong>
+          </div>
+          <div class="stat-item">
+            <span>الحد الأقصى</span>
+            <strong>${metrics.powerLimit || 0} W</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <style>
+      .metric-mini {
+        padding: 1rem;
+        background: var(--bg-tertiary);
+        border-radius: var(--radius-md);
+      }
+      .metric-mini-label {
+        display: block;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-bottom: 0.25rem;
+      }
+      .metric-mini-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+      .stats-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .stat-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.75rem;
+        background: var(--bg-tertiary);
+        border-radius: var(--radius-sm);
+      }
+      .stat-item span {
+        color: var(--text-muted);
+      }
+      .stat-item strong {
+        color: var(--text-primary);
+      }
+    </style>
   `;
 }
 
-function renderMetricCard(label, value, unit, max, color) {
-  const percent = max ? ((value || 0) / max * 100) : 0;
-  return `
-    <div class="metric-card">
-      <div class="metric-label">${label}</div>
-      <div class="metric-value ${color}">${value || 0}${unit}</div>
-      <div class="metric-bar">
-        <div class="metric-bar-fill ${color}" style="width: ${percent}%"></div>
-      </div>
-    </div>
-  `;
-}
-
-function renderInference() {
-  return `
-    <div class="animate-fadeIn">
-      <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 24px;">
-        <!-- Controls -->
-        <div class="card">
-          <h3 class="mb-4 font-semibold text-lg">إعدادات الاستدلال</h3>
-          
-          <div class="form-group">
-            <label class="form-label">النموذج</label>
-            <select id="inference-model" class="form-select">
-              <option value="ResNet-50">ResNet-50</option>
-              <option value="YOLOv8">YOLOv8</option>
-              <option value="BERT">BERT</option>
-              <option value="GPT-2">GPT-2</option>
-              <option value="Stable Diffusion">Stable Diffusion</option>
-            </select>
-          </div>
-
+// Render Inference Page
+function renderInferencePage(container) {
+  container.innerHTML = `
+    <div class="grid grid-cols-3 gap-4">
+      <div class="card col-span-2">
+        <div class="card-header">
+          <h3 class="card-title">
+            <span class="card-title-icon">${Icons.inference}</span>
+            تشغيل الاستدلال
+          </h3>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">اختر النموذج</label>
+          <select class="form-select" id="inference-model">
+            <option value="ResNet-50">ResNet-50 (تصنيف الصور)</option>
+            <option value="YOLOv8">YOLOv8 (كشف الكائنات)</option>
+            <option value="BERT">BERT (معالجة اللغة)</option>
+            <option value="GPT-2">GPT-2 (توليد النص)</option>
+            <option value="Stable Diffusion">Stable Diffusion (توليد الصور)</option>
+          </select>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4">
           <div class="form-group">
             <label class="form-label">الدقة</label>
-            <div class="radio-group" id="precision-group">
-              <button class="radio-btn" data-value="FP32">FP32</button>
-              <button class="radio-btn active" data-value="FP16">FP16</button>
-              <button class="radio-btn" data-value="INT8">INT8</button>
-            </div>
+            <select class="form-select" id="inference-precision">
+              <option value="FP32">FP32 (دقة كاملة)</option>
+              <option value="FP16" selected>FP16 (نصف الدقة)</option>
+              <option value="INT8">INT8 (كمي)</option>
+            </select>
           </div>
-
+          
           <div class="form-group">
             <label class="form-label">حجم الدفعة</label>
-            <input type="number" id="inference-batch" class="form-input" value="1" min="1" max="64">
-          </div>
-
-          <button class="btn btn-primary" onclick="runInference()" style="width: 100%">
-            ${Icons.play} تشغيل الاستدلال
-          </button>
-        </div>
-
-        <!-- Results -->
-        <div class="card">
-          <h3 class="mb-4 font-semibold text-lg">النتائج</h3>
-          <div id="inference-results">
-            <p style="color: var(--text-secondary); text-align: center; padding: 40px 0;">
-              شغّل استدلالاً لرؤية النتائج
-            </p>
+            <select class="form-select" id="inference-batch">
+              <option value="1">1</option>
+              <option value="4">4</option>
+              <option value="8" selected>8</option>
+              <option value="16">16</option>
+              <option value="32">32</option>
+            </select>
           </div>
         </div>
-      </div>
-
-      <!-- Run Log -->
-      <div class="card mt-4">
-        <h3 class="mb-4 font-semibold text-lg">سجل التشغيل</h3>
-        <div class="run-log" id="run-log">
-          ${AppState.inferenceLog.length === 0 ? 
-            '<p style="color: var(--text-muted);">لا توجد عمليات مسجلة</p>' :
-            AppState.inferenceLog.map(log => `
-              <div class="log-entry">
-                <span class="log-time">${log.time}</span>
-                <span class="log-message">${log.message}</span>
-              </div>
-            `).join('')
-          }
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderSettings() {
-  return `
-    <div class="animate-fadeIn">
-      <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 24px;">
-        <!-- General Settings -->
-        <div class="card">
-          <div class="settings-section">
-            <h3 class="settings-title">الإعدادات العامة</h3>
-            
-            <div class="form-group">
-              <label class="form-label">وضع الأداء</label>
-              <select id="setting-performance" class="form-select" onchange="updateSetting('performanceMode', this.value)">
-                <option value="performance">أداء عالي</option>
-                <option value="balanced" selected>متوازن</option>
-                <option value="silent">هادئ</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">معدل التحديث</label>
-              <select id="setting-refresh" class="form-select" onchange="updateSetting('refreshInterval', this.value)">
-                <option value="1000">1 ثانية</option>
-                <option value="2000" selected>2 ثانية</option>
-                <option value="5000">5 ثوانٍ</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">اللغة</label>
-              <select id="setting-language" class="form-select" onchange="updateSetting('language', this.value)">
-                <option value="ar" selected>العربية</option>
-                <option value="en">English</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <!-- AI Settings -->
-        <div class="card">
-          <div class="settings-section">
-            <h3 class="settings-title">إعدادات الذكاء الاصطناعي</h3>
-            
-            <div class="form-group">
-              <label class="form-label">مزود الخدمة</label>
-              <select id="setting-provider" class="form-select" onchange="updateSetting('aiProvider', this.value)">
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="local">محلي</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">مفتاح API</label>
-              <input type="password" id="setting-apikey" class="form-input" placeholder="sk-..." onchange="updateSetting('aiApiKey', this.value)">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">النموذج</label>
-              <select id="setting-model" class="form-select" onchange="updateSetting('aiModel', this.value)">
-                <option value="gpt-4o-mini">GPT-4o Mini</option>
-                <option value="gpt-4o">GPT-4o</option>
-                <option value="claude-3-sonnet">Claude 3 Sonnet</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <button class="btn btn-primary mt-4" onclick="saveSettings()">
-        ${Icons.check} حفظ الإعدادات
-      </button>
-    </div>
-  `;
-}
-
-function renderChatPanel() {
-  const presets = [
-    { id: 'gpu_help', label: 'حل مشكلة في أداء GPU' },
-    { id: 'optimize', label: 'تحسين إعدادات الاستدلال' },
-    { id: 'benchmark', label: 'تحليل نتائج الاختبار' },
-    { id: 'guide', label: 'شرح واجهة التطبيق' }
-  ];
-
-  return `
-    <div class="chat-header">
-      <div class="chat-title">
-        <div class="chat-icon">${Icons.robot}</div>
-        <div>
-          <div class="font-semibold">مساعد الذكاء</div>
-          <div class="text-xs" style="color: var(--text-muted)">AI Assistant</div>
-        </div>
-      </div>
-      <button class="chat-close-btn" onclick="toggleChat()">
-        ${Icons.close}
-      </button>
-    </div>
-
-    ${AppState.chatMessages.length === 0 ? `
-      <div class="chat-presets">
-        <p class="text-sm mb-3" style="color: var(--text-secondary);">اختر موضوعاً للبدء:</p>
-        ${presets.map(p => `
-          <button class="preset-btn" onclick="sendPresetMessage('${p.id}')">${p.label}</button>
-        `).join('')}
-      </div>
-    ` : ''}
-
-    <div class="chat-messages" id="chat-messages">
-      ${AppState.chatMessages.map(msg => `
-        <div class="chat-message ${msg.role}">
-          ${msg.content}
-        </div>
-      `).join('')}
-    </div>
-
-    <div class="chat-input-area">
-      <div class="chat-input-wrapper">
-        <input type="text" id="chat-input" class="chat-input" placeholder="اكتب رسالتك..." 
-          onkeypress="if(event.key==='Enter')sendChatMessage()">
-        <button class="chat-send-btn" onclick="sendChatMessage()" id="chat-send-btn">
-          ${Icons.send}
+        
+        <button class="btn btn-primary w-full mt-4" id="run-inference">
+          ${Icons.play}
+          تشغيل الاستدلال
         </button>
       </div>
+      
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">
+            <span class="card-title-icon">${Icons.activity}</span>
+            النتائج
+          </h3>
+        </div>
+        
+        <div id="inference-results" class="empty-state">
+          <div class="empty-state-icon">${Icons.inference}</div>
+          <p class="empty-state-text">قم بتشغيل استدلال لرؤية النتائج</p>
+        </div>
+      </div>
     </div>
   `;
-}
-
-// ============================================
-// Actions
-// ============================================
-function navigateTo(page) {
-  AppState.currentPage = page;
-  render();
-}
-
-function toggleChat() {
-  AppState.chatOpen = !AppState.chatOpen;
-  const chatPanel = document.getElementById('chat-panel');
-  if (AppState.chatOpen) {
-    chatPanel.classList.remove('hidden');
-    chatPanel.innerHTML = renderChatPanel();
-  } else {
-    chatPanel.classList.add('hidden');
-  }
-}
-
-async function sendChatMessage() {
-  const input = document.getElementById('chat-input');
-  const message = input?.value?.trim();
-  if (!message) return;
-
-  AppState.chatMessages.push({ role: 'user', content: message });
-  input.value = '';
-  renderChatMessages();
-
-  const response = await API.sendChatMessage(message);
-  AppState.chatMessages.push({ role: 'assistant', content: response.reply });
-  renderChatMessages();
-}
-
-function sendPresetMessage(presetId) {
-  const messages = {
-    'gpu_help': 'أواجه مشكلة في أداء بطاقة الرسومات. هل يمكنك مساعدتي؟',
-    'optimize': 'كيف يمكنني تحسين إعدادات الاستدلال للحصول على أفضل أداء؟',
-    'benchmark': 'قم بتحليل نتائج اختبار الأداء الأخيرة واقترح تحسينات.',
-    'guide': 'أنا مستخدم جديد، هل يمكنك شرح واجهة التطبيق؟'
-  };
   
-  const message = messages[presetId];
-  if (message) {
-    document.getElementById('chat-input').value = message;
-    sendChatMessage();
-  }
-}
-
-function renderChatMessages() {
-  const container = document.getElementById('chat-messages');
-  if (container) {
-    container.innerHTML = AppState.chatMessages.map(msg => `
-      <div class="chat-message ${msg.role}">
-        ${msg.content}
-      </div>
-    `).join('');
-    container.scrollTop = container.scrollHeight;
-  }
+  document.getElementById('run-inference').addEventListener('click', runInference);
 }
 
 async function runInference() {
-  const model = document.getElementById('inference-model')?.value;
-  const precision = document.querySelector('#precision-group .radio-btn.active')?.dataset.value || 'FP16';
-  const batchSize = parseInt(document.getElementById('inference-batch')?.value || '1');
-
+  const model = document.getElementById('inference-model').value;
+  const precision = document.getElementById('inference-precision').value;
+  const batchSize = parseInt(document.getElementById('inference-batch').value);
   const resultsDiv = document.getElementById('inference-results');
-  resultsDiv.innerHTML = '<div class="loader" style="margin: 40px auto;"></div>';
-
-  const result = await API.runInference({ model, precision, batchSize });
-
-  // Add to log
-  const now = new Date().toLocaleTimeString('ar-SA');
-  AppState.inferenceLog.unshift({
-    time: now,
-    message: `${model} | ${precision} | Batch ${batchSize} → ${result.latencyMs}ms`
-  });
-  if (AppState.inferenceLog.length > 10) AppState.inferenceLog.pop();
-
-  resultsDiv.innerHTML = `
-    <div class="grid grid-cols-2 gap-3">
-      ${renderMetricCard('وقت الاستجابة', result.latencyMs, 'ms', 50, 'primary')}
-      ${renderMetricCard('معدل الإنتاجية', result.throughput, 'img/s', 1000, 'success')}
-      ${renderMetricCard('ذاكرة GPU', result.gpuMemoryMB, 'MB', 4000, 'warning')}
-      ${renderMetricCard('الدقة', result.precision, '', 1, 'purple')}
-    </div>
-    <p class="text-xs mt-3" style="color: var(--text-muted); text-align: center;">
-      ${result.isReal ? '✅ نتيجة حقيقية' : '⚠️ محاكاة'}
-    </p>
-  `;
-
-  // Update log display
-  const logDiv = document.getElementById('run-log');
-  if (logDiv) {
-    logDiv.innerHTML = AppState.inferenceLog.map(log => `
-      <div class="log-entry">
-        <span class="log-time">${log.time}</span>
-        <span class="log-message">${log.message}</span>
+  
+  resultsDiv.innerHTML = '<div class="loading-spinner" style="margin: 2rem auto;"></div>';
+  
+  try {
+    const result = await window.AIForgeAPI.runInference({
+      model,
+      precision,
+      batchSize
+    });
+    
+    resultsDiv.innerHTML = `
+      <div class="result-item">
+        <span class="result-label">النموذج</span>
+        <span class="result-value">${result.model}</span>
       </div>
-    `).join('');
+      <div class="result-item">
+        <span class="result-label">زمن الاستجابة</span>
+        <span class="result-value text-accent">${result.latencyMs} ms</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">الإنتاجية</span>
+        <span class="result-value text-success">${result.throughput} img/s</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">ذاكرة GPU</span>
+        <span class="result-value">${result.gpuMemoryMB} MB</span>
+      </div>
+      ${!result.isReal ? '<p class="text-warning text-xs mt-4">* نتائج محاكاة</p>' : ''}
+      
+      <style>
+        .result-item {
+          display: flex;
+          justify-content: space-between;
+          padding: 0.75rem 0;
+          border-bottom: 1px solid var(--border-color);
+        }
+        .result-label {
+          color: var(--text-muted);
+        }
+        .result-value {
+          font-weight: 600;
+        }
+      </style>
+    `;
+  } catch (error) {
+    resultsDiv.innerHTML = '<p class="text-danger">حدث خطأ أثناء تشغيل الاستدلال</p>';
   }
 }
 
-async function updateSetting(key, value) {
-  await API.setSetting(key, value);
-  AppState.settings[key] = value;
+// Render Settings Page
+function renderSettingsPage(container) {
+  const settings = AppState.settings;
+  
+  container.innerHTML = `
+    <div class="grid grid-cols-2 gap-4">
+      <div class="card">
+        <h3 class="card-title mb-4">
+          <span class="card-title-icon">${Icons.settings}</span>
+          إعدادات عامة
+        </h3>
+        
+        <div class="form-group">
+          <label class="form-label">فترة التحديث (مللي ثانية)</label>
+          <select class="form-select" id="setting-refresh">
+            <option value="1000" ${settings.refreshInterval === 1000 ? 'selected' : ''}>1000 (سريع)</option>
+            <option value="2000" ${settings.refreshInterval === 2000 ? 'selected' : ''}>2000 (عادي)</option>
+            <option value="5000" ${settings.refreshInterval === 5000 ? 'selected' : ''}>5000 (بطيء)</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">وضع الأداء</label>
+          <select class="form-select" id="setting-performance">
+            <option value="power-saver" ${settings.performanceMode === 'power-saver' ? 'selected' : ''}>توفير الطاقة</option>
+            <option value="balanced" ${settings.performanceMode === 'balanced' ? 'selected' : ''}>متوازن</option>
+            <option value="performance" ${settings.performanceMode === 'performance' ? 'selected' : ''}>أداء عالي</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h3 class="card-title mb-4">
+          <span class="card-title-icon">${Icons.sparkles}</span>
+          إعدادات AI
+        </h3>
+        
+        <div class="form-group">
+          <label class="form-label">مزود AI</label>
+          <select class="form-select" id="setting-ai-provider">
+            <option value="openai" ${settings.aiProvider === 'openai' ? 'selected' : ''}>OpenAI</option>
+            <option value="anthropic" ${settings.aiProvider === 'anthropic' ? 'selected' : ''}>Anthropic (Claude)</option>
+            <option value="gemini" ${settings.aiProvider === 'gemini' ? 'selected' : ''}>Google (Gemini)</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">النموذج</label>
+          <select class="form-select" id="setting-ai-model">
+            <option value="gpt-4o-mini" ${settings.aiModel === 'gpt-4o-mini' ? 'selected' : ''}>GPT-4o Mini</option>
+            <option value="gpt-4o" ${settings.aiModel === 'gpt-4o' ? 'selected' : ''}>GPT-4o</option>
+            <option value="gpt-5.1" ${settings.aiModel === 'gpt-5.1' ? 'selected' : ''}>GPT-5.1</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">مفتاح API</label>
+          <input type="password" class="form-input" id="setting-api-key" 
+                 placeholder="sk-..." value="${settings.aiApiKey || ''}" />
+        </div>
+      </div>
+    </div>
+    
+    <div class="mt-4">
+      <button class="btn btn-primary" id="save-settings">
+        ${Icons.check}
+        حفظ الإعدادات
+      </button>
+    </div>
+  `;
+  
+  document.getElementById('save-settings').addEventListener('click', saveSettings);
 }
 
 async function saveSettings() {
-  alert('تم حفظ الإعدادات بنجاح!');
-}
-
-// ============================================
-// Main Render
-// ============================================
-function render() {
-  document.getElementById('sidebar').innerHTML = renderSidebar();
-  document.getElementById('topbar').innerHTML = renderTopbar();
+  const refreshInterval = parseInt(document.getElementById('setting-refresh').value);
+  const performanceMode = document.getElementById('setting-performance').value;
+  const aiProvider = document.getElementById('setting-ai-provider').value;
+  const aiModel = document.getElementById('setting-ai-model').value;
+  const aiApiKey = document.getElementById('setting-api-key').value;
   
-  const content = document.getElementById('page-content');
-  switch (AppState.currentPage) {
-    case 'dashboard':
-      content.innerHTML = renderDashboard();
-      break;
-    case 'inference':
-      content.innerHTML = renderInference();
-      setupInferenceControls();
-      break;
-    case 'settings':
-      content.innerHTML = renderSettings();
-      break;
-    default:
-      content.innerHTML = renderDashboard();
+  try {
+    await window.AIForgeAPI.setSetting('refreshInterval', refreshInterval);
+    await window.AIForgeAPI.setSetting('performanceMode', performanceMode);
+    await window.AIForgeAPI.setSetting('aiProvider', aiProvider);
+    await window.AIForgeAPI.setSetting('aiModel', aiModel);
+    await window.AIForgeAPI.setSetting('aiApiKey', aiApiKey);
+    
+    AppState.settings = await window.AIForgeAPI.getAllSettings();
+    
+    // Restart metrics polling with new interval
+    startMetricsPolling();
+    
+    alert('تم حفظ الإعدادات بنجاح!');
+  } catch (error) {
+    alert('حدث خطأ أثناء حفظ الإعدادات');
   }
 }
 
-function setupInferenceControls() {
-  // Setup radio buttons
-  document.querySelectorAll('#precision-group .radio-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#precision-group .radio-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    });
-  });
+// Helper Functions
+function formatMemory(mb) {
+  if (!mb) return '0';
+  if (mb >= 1024) {
+    return (mb / 1024).toFixed(1) + ' GB';
+  }
+  return mb + ' MB';
 }
 
-// ============================================
-// Initialization
-// ============================================
-async function init() {
-  // Listen for navigation events from Electron menu
-  if (window.AIForgeAPI) {
-    window.AIForgeAPI.onNavigate((page) => {
-      AppState.currentPage = page;
-      render();
-    });
-  }
-
-  // Initial render
-  render();
-
-  // Start GPU monitoring
-  await fetchGpuMetrics();
-  setInterval(fetchGpuMetrics, 2000);
+function getMemoryPercent(metrics) {
+  if (!metrics.memoryTotal) return 0;
+  return ((metrics.memoryUsed || 0) / metrics.memoryTotal * 100).toFixed(0);
 }
 
-async function fetchGpuMetrics() {
-  AppState.gpuMetrics = await API.getGpuMetrics();
-  if (AppState.currentPage === 'dashboard') {
-    document.getElementById('page-content').innerHTML = renderDashboard();
-  }
-  // Update sidebar status
-  const subtitle = document.querySelector('.sidebar-subtitle');
-  if (subtitle) {
-    subtitle.textContent = AppState.gpuMetrics?.isReal ? '🟢 GPU متصل' : '🟡 وضع العرض';
-  }
+function getTemperatureColor(temp) {
+  if (!temp) return 'success';
+  if (temp < 60) return 'success';
+  if (temp < 80) return 'warning';
+  return 'danger';
 }
 
-// Start app
-document.addEventListener('DOMContentLoaded', init);
+// Metrics Polling
+function startMetricsPolling() {
+  if (AppState.metricsInterval) {
+    clearInterval(AppState.metricsInterval);
+  }
+  
+  const fetchMetrics = async () => {
+    try {
+      AppState.gpuMetrics = await window.AIForgeAPI.getGpuMetrics();
+      
+      // Update dashboard if on that page
+      if (AppState.currentPage === 'dashboard') {
+        renderDashboard(document.getElementById('page-content'));
+      } else if (AppState.currentPage === 'gpu') {
+        renderGpuPage(document.getElementById('page-content'));
+      }
+    } catch (error) {
+      console.error('Failed to fetch GPU metrics:', error);
+    }
+  };
+  
+  fetchMetrics();
+  const interval = AppState.settings.refreshInterval || 2000;
+  AppState.metricsInterval = setInterval(fetchMetrics, interval);
+}

@@ -95,3 +95,4 @@ desktop-app/node_modules/electron/dist/electron
 # Environment files
 *.env
 *.env.*
+ai-forge-studio/node_modules/electron/dist/electron

@@ -1,101 +1,150 @@
-# دليل البناء - AI Forge Studio
+# دليل بناء AI Forge Studio
 
-## المتطلبات
+هذا الدليل يشرح كيفية بناء وتعبئة تطبيق AI Forge Studio لنظام Windows.
 
-### للتشغيل
-- Node.js 18 أو أحدث
-- npm أو yarn
+---
 
-### للبناء
-- Windows 10/11 (64-bit)
-- Visual Studio Build Tools (اختياري)
-
-## خطوات التثبيت
+## المتطلبات الأساسية
 
 ### 1. تثبيت Node.js
 
-حمّل من: https://nodejs.org/
+1. قم بتحميل Node.js من: https://nodejs.org/
+2. اختر الإصدار LTS (18 أو أحدث)
+3. قم بتشغيل المثبت واتبع التعليمات
+4. تأكد من التثبيت:
 
 ```bash
-node --version  # يجب أن يكون 18+
-npm --version
+node --version
+# يجب أن يظهر: v18.x.x أو أحدث
 ```
 
-### 2. تثبيت المكتبات
+### 2. تثبيت Yarn
 
 ```bash
-cd ai-forge-studio
-npm install
+npm install -g yarn
 ```
 
-### 3. التشغيل في وضع التطوير
+### 3. تثبيت Git (اختياري)
 
 ```bash
-npm start
+# قم بتحميل Git من: https://git-scm.com/download/win
 ```
 
-أو مع DevTools:
+---
+
+## خطوات البناء
+
+### الخطوة 1: استخراج الملفات
+
+قم باستخراج ملفات المشروع إلى مجلد على جهازك، مثلاً:
+```
+C:\Projects\ai-forge-studio
+```
+
+### الخطوة 2: فتح Terminal
+
+1. افتح PowerShell أو Command Prompt
+2. انتقل إلى مجلد المشروع:
 
 ```bash
-npm run dev
+cd C:\Projects\ai-forge-studio
 ```
 
-## بناء ملف التثبيت
-
-### Windows
+### الخطوة 3: تثبيت التبعيات
 
 ```bash
-npm run dist:win
+yarn install
 ```
 
-**الملفات الناتجة:**
-- `dist/AI Forge Studio Setup 2.0.0.exe` - ملف التثبيت
-- `dist/win-unpacked/` - النسخة المحمولة
+هذا الأمر سيقوم بتثبيت جميع المكتبات المطلوبة.
 
-### إعدادات البناء
+### الخطوة 4: اختبار التطبيق
 
-الإعدادات في `package.json` تحت `"build"`:
+قبل البناء، تأكد أن التطبيق يعمل:
 
-```json
-{
-  "build": {
-    "appId": "com.aiforge.studio",
-    "productName": "AI Forge Studio",
-    "win": {
-      "target": "nsis"
-    },
-    "nsis": {
-      "oneClick": false,
-      "createDesktopShortcut": true
-    }
-  }
-}
+```bash
+yarn start
 ```
+
+يجب أن يفتح التطبيق ويعرض لوحة التحكم.
+
+### الخطوة 5: بناء ملف التثبيت
+
+```bash
+yarn dist:win
+```
+
+انتظر حتى تكتمل العملية (قد تستغرق عدة دقائق).
+
+### الخطوة 6: الحصول على الملف
+
+بعد اكتمال البناء، ستجد ملف التثبيت في:
+
+```
+ai-forge-studio/
+└── dist/
+    └── AI Forge Studio Setup 2.0.0.exe
+```
+
+---
 
 ## استكشاف الأخطاء
 
-### خطأ: electron not found
+### خطأ: node-gyp أو أخطاء التجميع
+
+قم بتثبيت أدوات البناء لـ Windows:
 
 ```bash
-npm install electron --save-dev
+npm install -g windows-build-tools
 ```
 
-### خطأ: systeminformation
+### خطأ: ENOENT أو ملف غير موجود
 
-```bash
-npm install systeminformation
-```
+تأكد من أنك في المجلد الصحيح وأن جميع الملفات موجودة.
 
-### خطأ في البناء
+### خطأ: Permission denied
 
-```bash
-npm cache clean --force
-rm -rf node_modules
-npm install
-```
+قم بتشغيل PowerShell كـ Administrator.
 
-## الخطوات التالية
+### التطبيق لا يعمل بعد البناء
 
-1. **إضافة أيقونة**: ضع `icon.ico` في `src/frontend/assets/img/`
-2. **تخصيص الاسم**: عدّل `productName` في package.json
-3. **إضافة شهادة**: للتوقيع الرقمي على Windows
+1. تأكد من تثبيت Visual C++ Redistributable
+2. جرب إعادة تشغيل الكمبيوتر
+
+---
+
+## إضافة أيقونة مخصصة
+
+1. قم بإنشاء ملف أيقونة بحجم 256x256 pixels
+2. احفظه كـ `icon.ico`
+3. ضعه في: `src/frontend/assets/img/icon.ico`
+4. أعد البناء
+
+---
+
+## ملاحظات مهمة
+
+- **مراقبة GPU الحقيقية**: تتطلب بطاقة NVIDIA مع تثبيت التعريفات
+- **مساعد AI**: يستخدم Emergent LLM Key افتراضياً. يمكنك تغييره من الإعدادات
+- **حجم الملف**: الملف النهائي سيكون حوالي 80-120 MB
+
+---
+
+## الأوامر المتاحة
+
+| الأمر | الوصف |
+|-------|-------|
+| `yarn install` | تثبيت التبعيات |
+| `yarn start` | تشغيل التطبيق |
+| `yarn dev` | تشغيل مع DevTools |
+| `yarn pack` | تعبئة بدون مثبت |
+| `yarn dist` | بناء المثبت |
+| `yarn dist:win` | بناء لـ Windows فقط |
+
+---
+
+## المساعدة
+
+إذا واجهت أي مشاكل، راجع:
+- الوثائق: README.md
+- سجلات البناء في Terminal
